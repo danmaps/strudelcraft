@@ -32,6 +32,7 @@ The result is a playable, explorable world where rhythm, pitch, and instrumentat
 - Multiplayer or networking
 - Persistence or world saving
 - Full Minecraft feature parity
+- Fetching or bundling external Strudel sample banks (e.g., `samples('github:eddyflux/crate')` from community songs)
 
 ---
 
@@ -155,6 +156,15 @@ Strudelcraft will adapt this codebase to:
 - Introduce time-based chunk streaming
 - Customize materials and colors per instrument
 
+### Strudel Runtime Surface Area
+
+- Adopt the official `@strudel.cycles/*` packages highlighted in the Loophole Letters article:
+  - `core` for pattern/query primitives (`sequence`, `stack`, `queryArc`)
+  - `mini` / `eval` for parsing URL-provided strings and executing them headlessly
+  - `tone`, `midi`, `webaudio`, `osc` kept optional yet architected-in so visuals can stay in sync with whichever playback target the user enables later.
+- Embed a **thin adapter** replicating the REPL's Read → Evaluate → Play → Loop cadence. Visualization consumes the “Evaluate” output (events) and leaves Play/Loop open for future synchronized audio.
+- Scheduler parity: adopt the worker-based Web Audio scheduling trick from the article to ensure camera motion and block streaming remain deterministic with Strudel’s timing.
+
 ---
 
 ## Strudel Integration
@@ -174,6 +184,31 @@ const events = pattern.queryArc(cycle, cycle + 1)
 ````
 
 Each event becomes one or more blocks.
+
+### Pattern Semantics To 3D
+
+Insights from the [Loophole Letters “Introducing Strudel” article](https://loophole-letters.vercel.app/strudel) drive our mapping strategy:
+
+- **Pattern factories** such as `sequence` (serial time slicing) and `stack` (simultaneous voices) translate into **lanes and stacks**. Sequential expressions advance along +X, while bracketed `[sd hh]` style chords create parallel columns along the +Z instrument axis.
+- **Pattern modifiers** like `.fast(n)` / `.slow(n)` change temporal density. We will visualize these by compressing or stretching block lengths so rhythmic acceleration is visible even when pitch is ignored.
+- **Mini-notation & syntax sugar** support compact expressions (`s("bd [sd hh] bd sd")`). Our parser roadmap mirrors Strudel’s: expand nested brackets, convert rests (`.`) into intentional gaps, and surface per-step metadata so every visual block carries `start`, `end`, `instrument`, and `velocity`.
+- **Evolving patterns & signals** (e.g., LFOs, additive modifiers) can emit extra attributes. Even before audio playback, we will attach these values to color, emissive strength, or vertical jitter to preview modulation.
+
+### Scheduling & Playback Considerations
+
+- Strudel schedules events via Tone.js, MIDI, OSC, or bare Web Audio workers. For visualization we only need deterministic event order, but our architecture anticipates **future synchronization with Tone/Web Audio** so camera motion can lock to the same scheduler that drives sound.
+- A lightweight **worker-based cycle clock** (similar to Strudel’s Web Audio scheduler) will push `cycleStart`/`cycleEnd` to the renderer. This ensures worlds scroll even when patterns evolve live.
+- Support both **headless evaluation** (query spans for a precomputed world) and **streaming evaluation** (request `queryArc(current, current+1)` each clock tick) so we can eventually scrub or “play” the world while coding.
+
+### Implementation Roadmap
+
+1. **Parser parity**: Implement a minimal Strudel-compatible tokenizer (quotes, bracket groups, rests, `.fast/.slow`) so browser-only runs can approximate REPL output without bundling the entire runtime.
+2. **Event normalization**: Convert every event to `{cycle, start, end, instrument, velocity, modifierContext}`. Rely on Strudel’s semantics where possible; fall back to safe defaults (e.g., cycle = floor(time)).
+3. **3D emitters**:
+   - `sequence` → contiguous block ribbons marching along X.
+   - `stack` or bracket groups → Z-separated “lanes” sharing the same X index so simultaneous hits read as chords.
+   - `add/sub` or `signals` → apply offsets to Y (height) or block size to differentiate transformed material.
+4. **Live editing hook**: Mirror the article’s REPL flow (Read → Evaluate → Play → Loop) by re-evaluating a pattern whenever the URL hash changes, hot-swapping chunks without full-scene reloads.
 
 ---
 
@@ -212,6 +247,15 @@ Each event becomes one or more blocks.
 | High percussion | Thin, elevated blocks     |
 
 Color is functional, not decorative. Legibility matters.
+
+### Rhythm-First Visual Grammar
+
+- **Cycles as chunks**: Following Strudel’s `querySpan` mental model, each queried cycle becomes an 8–16 block-long “runway.” Alternating tints per cycle make `.fast/.slow` regions obvious when they no longer align to the default grid.
+- **Stack awareness**: Bracketed patterns or `stack()` outputs render as **braided ribbons** instead of simple towers—color-coded slices share the same X coordinate but split along Z so simultaneous hits are easy to read.
+- **Modifiers as overlays**: Use subtle glyphs/decals to denote `.add` / `.sub` manipulations or signals. E.g., translucent halo for events touched by `.slow`, pulse animation for `.fast`, ensuring coders perceive transformations even without audio.
+- **Velocity & gain**: Rather than adding new axes, brightness/emissive intensity will reflect event velocity; darker blocks read as soft hits.
+- **Pattern factories in space**: `sequence` = paths, `stack` = braids, `mini` expansions = micro-blocks between major beats. Documenting these rules in-engine keeps Strudel coders grounded in familiar terminology.
+- **Symbol overlays**: Inspired by Strudel’s 2D piano-roll view, each voxel can project a tiny billboard showing the token (`bd`, `a`, `eb`, etc.). Labels fade with distance to avoid clutter but provide up-close confirmation of the underlying mini-notation.
 
 ---
 

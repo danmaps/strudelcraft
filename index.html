@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strudelcraft</title>
+    <style>
+        body {
+            margin: 0;
+            overflow: hidden;
+            }
+
+        canvas {
+            display: block;
+        }
+
+        #crosshair {
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 20px;
+            height: 2px;
+            background-color: white;
+            transform: translate(-50%, -50%);
+            pointer-events: none;
+            z-index: 100;
+        }
+
+        #crosshair::after {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 2px;
+            height: 20px;
+            background-color: white;
+            transform: translate(-50%, -50%);
+        }
+
+        #github-link {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 100;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 50%;
+            transition: transform 0.2s ease-in-out, background-color 0.2s;
+        }
+
+        #github-link:hover {
+            transform: scale(1.1);
+            background-color: rgba(0, 0, 0, 0.8);
+        }
+
+        #github-link svg {
+            width: 32px;
+            height: 32px;
+            fill: white;
+        }
+
+        #instructions {
+            position: absolute;
+            bottom: 20px;
+            left: 20px;
+            color: white;
+            font-family: monospace;
+            font-size: 14px;
+            background-color: rgba(0, 0, 0, 0.5);
+            padding: 10px;
+            border-radius: 5px;
+            pointer-events: none;
+            user-select: none;
+        }
+    </style>
+    <!-- Three.js CDN -->
+    <script type="importmap">
+        {
+            "imports": {
+                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
+                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
+            }
+        }
+    </script>
+</head>
+
+<body>
+    <div id="crosshair"></div>
+    <div id="instructions">
+        <div>WASD / Arrow keys: Move</div>
+        <div>Mouse: Look</div>
+        <div>Space: Jump / Ascend (flight)</div>
+        <div>Shift: Descend (flight)</div>
+        <div>F: Toggle flight (<span id="flight-status">grounded</span>)</div>
+        <div>Left Click: Remove block</div>
+        <div>Right Click: Place block</div>
+        <div>Input: <span id="strudel-status">default terrain</span></div>
+    </div>
+    <script type="module" src="src/main.js"></script>
+</body>
+
+</html>
