@@ -30,3 +30,6 @@ Thumbs.db
 
 # Project docs not intended for deployment
 PRD.md
+
+# Test artifacts
+tests/artifacts/

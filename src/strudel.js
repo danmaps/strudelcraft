@@ -64,7 +64,10 @@ export async function buildStrudelEventsFromSource(source, options = {}) {
     if (!code || !code.trim()) {
         return { code, description: `${description} (0 lanes)`, events: [] };
     }
-    const runtimeResult = await tryRuntimeEvaluation(code, options);
+    let runtimeResult = null;
+    if (!options.disableRuntime) {
+        runtimeResult = await tryRuntimeEvaluation(code, options);
+    }
     if (runtimeResult?.events?.length) {
         const runtimeDescription = `${description} (runtime)`;
         return { code, description: runtimeDescription, events: runtimeResult.events };
