@@ -6,10 +6,12 @@
 
 ## Why Strudelcraft?
 
-- **Spatial debugger for music** - see cycles, density, and instrumentation at a glance.
+Strudelcraft is a playful visualization toy—a way to wander through Strudel code for the sheer joy of it. It is meant for curiosity, learning, and art, not for debugging or shipping features. Software can exist purely because it makes us smile.
+
+- **Whimsical Strudel playground** - fly through patterns like they were sculpture.
 - **Zero-config** - runs entirely client-side and accepts Strudel share URLs or hash URLs.
 - **Deterministic worlds** - the same input always produces the same terrain.
-- **Creative coding portfolio piece** - showcases the intersection of music theory, geometry, and systems thinking.
+- **Creative coding art piece** - celebrates the intersection of music theory, geometry, and systems thinking.
 
 ---
 
