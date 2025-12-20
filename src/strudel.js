@@ -1,5 +1,6 @@
-const DEFAULT_SOURCE = '$: s("bd [sd hh] bd sd").fast(1)';
-const DEFAULT_STATUS = 'default pattern';
+import { ensureStrudelRuntime } from './strudelRuntime.js';
+
+const DEFAULT_STATUS = 'no pattern provided';
 const DEFAULT_CYCLES = 6;
 const DEFAULT_NOTE_OCTAVE = 4;
 
@@ -58,28 +59,24 @@ export function getStrudelSourceFromUrl() {
     return null;
 }
 
-export function buildStrudelEventsFromSource(source, options = {}) {
+export async function buildStrudelEventsFromSource(source, options = {}) {
     const { code, description } = resolveStrudelCode(source);
-    const blocks = extractPatternBlocks(code);
-    if (blocks.length > 0) {
-        console.log('[strudelcraft] Parsed pattern blocks:', blocks.map((block, idx) => ({
-            lane: idx,
-            patternType: block.patternType,
-            body: block.body,
-            modifiers: block.modifiers.trim(),
-        })));
-    } else {
-        console.warn('[strudelcraft] No pattern blocks were parsed from input. Falling back to default.');
+    if (!code || !code.trim()) {
+        return { code, description: `${description} (0 lanes)`, events: [] };
     }
-    const events = blocks.flatMap((block, idx) => generateEventsFromBlock(block, idx, options));
-    const lanes = blocks.length || 1;
-    const status = `${description} (${lanes} lane${lanes === 1 ? '' : 's'})`;
-    return { code, description: status, events };
+    const runtimeResult = await tryRuntimeEvaluation(code, options);
+    if (runtimeResult?.events?.length) {
+        const runtimeDescription = `${description} (runtime)`;
+        return { code, description: runtimeDescription, events: runtimeResult.events };
+    }
+    console.warn('[strudelcraft] Falling back to heuristic parser.');
+    const fallback = buildHeuristicEvents(code, description, options);
+    return fallback;
 }
 
 function resolveStrudelCode(source) {
     if (!source) {
-        return { code: DEFAULT_SOURCE, description: DEFAULT_STATUS };
+        return { code: '', description: DEFAULT_STATUS };
     }
 
     if (source.type === 'code') {
@@ -98,13 +95,13 @@ function resolveStrudelCode(source) {
             };
         }
         return {
-            code: DEFAULT_SOURCE,
-            description: 'hash decode failed - fallback pattern',
+            code: '',
+            description: 'hash decode failed - see console',
         };
     }
 
     return {
-        code: DEFAULT_SOURCE,
+        code: '',
         description: `share ID (${source.payload}) not supported offline`,
     };
 }
@@ -130,6 +127,160 @@ function decodeHashPayload(payload = '') {
     return null;
 }
 
+async function tryRuntimeEvaluation(code, options) {
+    const trimmed = code?.trim();
+    if (!trimmed) return null;
+    try {
+        const runtime = await ensureStrudelRuntime();
+        const { letEntries, patternBlocks } = parseRuntimeBlocks(trimmed);
+        console.log('[strudelcraft] Runtime blocks detected:', { lets: letEntries.length, outputs: patternBlocks.length });
+
+        for (const entry of letEntries) {
+            const expr = `globalThis.${entry.name} = (${entry.expression.trim()})`;
+            await runtime.evaluate(expr);
+        }
+
+        if (!patternBlocks.length) {
+            const evaluation = await runtime.evaluate(trimmed);
+            const pattern = evaluation?.pattern;
+            if (!pattern) return null;
+            const events = runtimePatternToEvents(pattern, 0, options);
+            return { events };
+        }
+
+        const runtimeEvents = [];
+        for (let i = 0; i < patternBlocks.length; i += 1) {
+            const block = patternBlocks[i].trim();
+            if (!block) continue;
+            const evaluation = await runtime.evaluate(block);
+            const pattern = evaluation?.pattern;
+            if (!pattern || typeof pattern.queryArc !== 'function') {
+                console.warn(`[strudelcraft] Runtime block #${i} did not return a queryable pattern.`);
+                continue;
+            }
+            const events = runtimePatternToEvents(pattern, i, options);
+            runtimeEvents.push(...events);
+        }
+        return { events: runtimeEvents };
+    } catch (error) {
+        console.error('[strudelcraft] Runtime evaluation failed', error);
+        return null;
+    }
+}
+
+function parseRuntimeBlocks(code) {
+    const letRegex = /(^|\n)\s*let\s+([A-Za-z0-9_]+)\s*=\s*([\s\S]*?)(?=\n\s*(?:let|\$:)|$)/g;
+    const patternRegex = /(^|\n)\s*\$:\s*([\s\S]*?)(?=\n\s*\$:|$)/g;
+    const letEntries = [];
+    const patternBlocks = [];
+
+    let letMatch;
+    while ((letMatch = letRegex.exec(code))) {
+        const [, , name, expression] = letMatch;
+        letEntries.push({ name: name.trim(), expression: expression.trim() });
+    }
+
+    let patternMatch;
+    while ((patternMatch = patternRegex.exec(code))) {
+        const [, , expression] = patternMatch;
+        patternBlocks.push(expression.trim());
+    }
+
+    if (!patternBlocks.length && code.trim().length) {
+        patternBlocks.push(code.trim());
+    }
+
+    return { letEntries, patternBlocks };
+}
+
+function runtimePatternToEvents(pattern, laneIndex, options) {
+    const cycles = options.cycles ?? DEFAULT_CYCLES;
+    const events = [];
+    if (typeof pattern.queryArc !== 'function') {
+        return events;
+    }
+    for (let cycle = 0; cycle < cycles; cycle += 1) {
+        const haps = pattern.queryArc(cycle, cycle + 1) || [];
+        haps.forEach((hap) => {
+            const part = hap.part ?? hap.whole;
+            if (!part) return;
+            const begin = fractionToNumber(part.begin ?? cycle);
+            const end = fractionToNumber(part.end ?? cycle + 1);
+            const startCycle = Math.floor(begin);
+            const time = begin - startCycle;
+            const duration = Math.max(end - begin, 0.0001);
+            const interpreted = interpretRuntimeValue(hap.value);
+            events.push({
+                cycle: startCycle,
+                time,
+                duration,
+                velocity: interpreted.velocity ?? 1,
+                pitch: interpreted.pitch ?? 60,
+                instrument: interpreted.instrument ?? 'default',
+                label: interpreted.label,
+                patternLane: laneIndex,
+            });
+        });
+    }
+    return events;
+}
+
+function fractionToNumber(value) {
+    if (typeof value === 'number') return value;
+    if (value && typeof value.valueOf === 'function') {
+        const numeric = value.valueOf();
+        if (typeof numeric === 'number' && Number.isFinite(numeric)) {
+            return numeric;
+        }
+    }
+    if (value && typeof value.toNumber === 'function') {
+        return value.toNumber();
+    }
+    return Number(value) || 0;
+}
+
+function interpretRuntimeValue(value) {
+    if (value == null) {
+        return { instrument: 'default', label: '' };
+    }
+    if (typeof value === 'string') {
+        return {
+            instrument: /^[a-gA-G][#b]?\d?$/.test(value) ? 'note' : value,
+            label: value,
+            pitch: parseNote(value),
+        };
+    }
+    if (typeof value === 'object') {
+        const instrument = value.s ?? value.sound ?? value.sample ?? value.instrument ?? 'note';
+        const pitch = typeof value.midinote === 'number' ? value.midinote : typeof value.note === 'number' ? value.note : typeof value.n === 'number' ? value.n : undefined;
+        const velocity = typeof value.velocity === 'number' ? value.velocity : value.gain;
+        const label = value.label ?? value.s ?? value.sound ?? instrument;
+        return { instrument, pitch, velocity, label };
+    }
+    return { instrument: 'default', label: String(value) };
+}
+
+function buildHeuristicEvents(code, description, options) {
+    const blocks = extractPatternBlocks(code);
+    if (blocks.length > 0) {
+        console.log(
+            '[strudelcraft] Parsed pattern blocks:',
+            blocks.map((block, idx) => ({
+                lane: idx,
+                patternType: block.patternType,
+                body: block.body,
+                modifiers: block.modifiers.trim(),
+            })),
+        );
+    } else {
+        console.warn('[strudelcraft] No pattern blocks were parsed from input. Rendering empty world.');
+    }
+    const events = blocks.flatMap((block, idx) => generateEventsFromBlock(block, idx, options));
+    const laneCount = blocks.length;
+    const status = `${description} (${laneCount} lane${laneCount === 1 ? '' : 's'})`;
+    return { code, description: status, events };
+}
+
 function extractPatternBlocks(code) {
     const trimmed = code.trim();
     const blocks = [];
@@ -147,19 +298,13 @@ function extractPatternBlocks(code) {
         blocks.push({ patternType, body, modifiers });
     }
 
-    if (!blocks.length) {
+    if (!blocks.length && trimmed.length) {
         const singleMatch = trimmed.match(/(note|sound|s|n)\s*\(\s*(['"`])([\s\S]+?)\2\s*\)(.*)$/i);
         if (singleMatch) {
             blocks.push({
                 patternType: singleMatch[1].toLowerCase(),
                 body: singleMatch[3],
                 modifiers: singleMatch[4] ?? '',
-            });
-        } else {
-            blocks.push({
-                patternType: 's',
-                body: 'bd [sd hh] bd sd',
-                modifiers: '',
             });
         }
     }

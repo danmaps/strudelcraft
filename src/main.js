@@ -19,38 +19,10 @@ scene.add(highlightMesh);
 const world = new World(scene);
 world.generateBaseTerrain();
 
-const strudelSource = getStrudelSourceFromUrl();
-const { events, description } = buildStrudelEventsFromSource(strudelSource);
-const voxels = eventsToVoxels(events);
-world.addMusicalVoxels(voxels);
-const spawnPlan = computeSpawnPlan(voxels);
-if (spawnPlan) {
-    buildSpawnPlatform(world, spawnPlan);
-}
-
+let controls;
+let spawnPlan = null;
 const flightStatusEl = document.getElementById(UI.flightStatusId);
 const strudelStatusEl = document.getElementById(UI.strudelStatusId);
-if (strudelStatusEl) {
-    strudelStatusEl.textContent = description;
-}
-
-const controls = new PlayerControls(camera, document.body, world, {
-    onFlightChange: (isFlying) => {
-        if (flightStatusEl) {
-            flightStatusEl.textContent = isFlying ? 'flying' : 'grounded';
-        }
-    },
-});
-
-if (flightStatusEl) {
-    flightStatusEl.textContent = 'grounded';
-}
-
-if (spawnPlan) {
-    controls.getObject().position.copy(spawnPlan.playerPosition);
-    controls.velocity?.set(0, 0, 0);
-    controls.canJump = true;
-}
 
 const raycaster = new THREE.Raycaster();
 const pointer = new THREE.Vector2(0, 0);
@@ -59,8 +31,47 @@ const clock = new THREE.Clock();
 document.addEventListener('contextmenu', (event) => event.preventDefault());
 document.addEventListener('mousedown', (event) => onMouseDown(event));
 
+async function init() {
+    const strudelSource = getStrudelSourceFromUrl();
+    const { events, description } = await buildStrudelEventsFromSource(strudelSource);
+    if (strudelStatusEl) {
+        strudelStatusEl.textContent = description;
+    }
+    const voxels = eventsToVoxels(events);
+    world.addMusicalVoxels(voxels);
+    spawnPlan = computeSpawnPlan(voxels);
+    if (spawnPlan) {
+        buildSpawnPlatform(world, spawnPlan);
+    }
+
+    controls = new PlayerControls(camera, document.body, world, {
+        onFlightChange: (isFlying) => {
+            if (flightStatusEl) {
+                flightStatusEl.textContent = isFlying ? 'flying' : 'grounded';
+            }
+        },
+    });
+
+    if (flightStatusEl) {
+        flightStatusEl.textContent = 'grounded';
+    }
+
+    if (spawnPlan) {
+        controls.getObject().position.copy(spawnPlan.playerPosition);
+        controls.velocity?.set(0, 0, 0);
+        controls.canJump = true;
+    }
+
+    animate();
+}
+
+init().catch((error) => {
+    console.error('[strudelcraft] Failed to initialize Strudel events', error);
+    animate();
+});
+
 function onMouseDown(event) {
-    if (!controls.isLocked()) return;
+    if (!controls || !controls.isLocked()) return;
     raycaster.setFromCamera(pointer, camera);
     const intersects = raycaster.intersectObjects(world.getRaycastTargets(), false);
     if (!intersects.length) return;
@@ -101,12 +112,10 @@ function updateHighlight() {
 function animate() {
     requestAnimationFrame(animate);
     const delta = Math.min(clock.getDelta(), 0.1);
-    controls.update(delta);
+    controls?.update(delta);
     updateHighlight();
     renderer.render(scene, camera);
 }
-
-animate();
 
 function computeSpawnPlan(voxels) {
     if (!voxels.length) {

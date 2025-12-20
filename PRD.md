@@ -162,6 +162,7 @@ Strudelcraft will adapt this codebase to:
   - `core` for pattern/query primitives (`sequence`, `stack`, `queryArc`)
   - `mini` / `eval` for parsing URL-provided strings and executing them headlessly
   - `tone`, `midi`, `webaudio`, `osc` kept optional yet architected-in so visuals can stay in sync with whichever playback target the user enables later.
+- Evaluate integrating [`@strudel/web`](https://codeberg.org/uzu/strudel/src/branch/main/packages/web#strudel-web) so the browser can execute real Strudel code without extra bundling. `initStrudel()` exposes the full API (e.g., `evaluate`, `note`, `stack`), letting us defer to the official runtime instead of reimplementing mini-notation or let-binding semantics.
 - Embed a **thin adapter** replicating the REPL's Read → Evaluate → Play → Loop cadence. Visualization consumes the “Evaluate” output (events) and leaves Play/Loop open for future synchronized audio.
 - Scheduler parity: adopt the worker-based Web Audio scheduling trick from the article to ensure camera motion and block streaming remain deterministic with Strudel’s timing.
 

@@ -23,6 +23,7 @@ URL -> Strudel code -> Event stream -> Voxel buffer -> Three.js renderer
 2. The Strudel runtime evaluates the code headlessly and exposes events with `queryArc(start, end)`.
 3. Events are mapped to voxel chunks (X = time, Y = pitch, Z = instrument lane).
 4. A Three.js scene renders those voxels using chunk streaming to keep performance smooth.
+5. As the project matures, [`@strudel/web`](https://codeberg.org/uzu/strudel/src/branch/main/packages/web#strudel-web) can execute the actual Strudel code in-browser so the visualization mirrors the REPL’s behavior without reinventing parsing logic.
 
 ---
 
