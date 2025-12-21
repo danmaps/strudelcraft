@@ -1,0 +1,10 @@
+{
+    "name": "strudelcraft",
+    "version": "0.0.0",
+    "private": true,
+    "type": "module",
+    "scripts": {
+        "test": "node tests/strudel-loop.test.mjs",
+        "test:artifacts": "node tests/strudel-loop.test.mjs --update-artifacts"
+    }
+}

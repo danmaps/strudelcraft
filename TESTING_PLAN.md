@@ -1,60 +1,101 @@
 # Testing Plan
 
-Strudelcraft mixes Strudel pattern parsing, voxel mapping, and Three.js rendering. The primary goal of this plan is to identify small, deterministic test surfaces that exercise the data pipelines without requiring a browser or Strudel's runtime service. The plan favors headless Node-based tests that can run in CI.
+Strudelcraft mixes Strudel pattern parsing, voxel mapping, and Three.js rendering. The goal of this plan is to keep verification deterministic while still covering the most failure-prone data flows.
 
 ---
 
-## Guiding Principles
+## How to Run
 
-- **Deterministic inputs**: Prefer explicit code snippets or event objects over live URL fetching so tests remain stable.
-- **Golden artifacts**: Where visualization logic is involved, serialize events + voxel buffers to JSON and diff the result instead of inspecting canvases.
-- **Runtime isolation**: Stub or disable the Strudel runtime whenever possible so heuristic parsing remains testable offline.
-- **Incremental coverage**: Start with core data transforms (patterns -> events -> voxels) before attempting scene-level assertions.
+```bash
+# Core suite (deterministic data plumbing checks)
+npm test
+
+# Optional artifact regeneration for inspection
+npm run test:artifacts
+```
+
+Direct invocation alternative: `node tests/strudel-loop.test.mjs`. The `test:artifacts` script already supplies `--update-artifacts`, but extra flags can be appended via `npm run test:artifacts -- <flag>`.
 
 ---
 
-## Proposed Unit Tests
+## Scope, Priorities, and Non-Goals
 
-1. **Strudel Source Resolution**
-   - Given sample query strings (`?code=`, `?#hash`, raw share IDs), `getStrudelSourceFromUrl` returns the expected `{ type, payload }` objects.
-   - `decodeHashPayload` gracefully handles invalid base64 and logs errors without throwing.
+### Priorities
+- **P0**: Source resolution, heuristic parsing, voxel mapping, and token/note parsing (the data plumbing used on every load).
+- **P1**: Runtime guard rails that ensure evaluation errors fall back cleanly.
+- **P2**: Artifact helpers and optional diagnostics (JSON dumps, diff tooling).
 
-2. **Heuristic Pattern Parsing**
-   - `buildStrudelEventsFromSource` with `disableRuntime: true` should emit events for representative snippets:
-     - Basic melodic loop (`$: note("c4 e4 g4 c5")`) -- already covered in `tests/strudel-loop.test.mjs`.
-     - Number-based degrees with `.scale()` modifier (`$: n("0 2 4").scale("d:maj")`) to confirm `degreeToMidi` math.
-     - Rhythmic modifiers like `.fast(2)` / `.slow(3)` to ensure duration/time calculations hold.
-   - Error cases: missing `$:` blocks should log warnings and return empty events.
+### Non-goals
+- Validating Three.js material fidelity or camera movement in unit tests.
+- Proving the correctness of the upstream Strudel runtime implementation.
+- Golden-image comparisons of full frames or GPU state.
 
-3. **Token/Note Parsing**
-   - Direct tests for `parseNote`, `parseToken`, and `interpretToken` (edge cases: sharps/flats, repeats `foo!3`, nested `[c4 e4]`).
-   - Snapshot-style assertions on `normalizeMiniPattern` to confirm repeats and parallel blocks expand correctly.
+---
 
-4. **Voxel Mapping**
-   - `eventsToVoxels` should correctly map cycles, lanes, and pitch offsets using deterministic events:
-     - Percussion events with custom instruments hit the configured `INSTRUMENT_LANES` values.
-     - Unknown instruments fall back to `patternLane` offsets.
-     - Pitch extremes clamp/offset properly relative to `MUSIC_MAPPING.pitchBase`.
+## Test Surface Framing
 
-5. **Runtime Guard Rails**
-   - When the runtime throws, `buildStrudelEventsFromSource` must fall back to heuristic parsing instead of propagating errors.
-   - `tryRuntimeEvaluation` respects the `cycles` option when querying arcs.
+- **Unit tests**: pure helpers (token parsing, fraction math, note-to-MIDI conversion).
+- **Integration tests**: stitched flows such as pattern string -> events -> voxels.
+- **Smoke tests**: ensure high-level modules (e.g., scene bootstrap) at least import without throwing when DOM globals are stubbed.
 
-6. **Artifact Verification**
-   - Wrap JSON artifact generation helpers so each test can opt in to writing files when `CI` is false; unit tests should default to in-memory assertions but offer `--update-artifacts` for manual inspection.
+---
+
+## Proposed Unit Tests (with examples)
+
+1. **Strudel Source Resolution (Unit)**
+   - Example success: querying `?code=%24%3A%20note(%22c4%22)` should produce `{ type: 'code', payload: '$: note("c4")' }`.
+   - Example hash: `?#YzQ%3D` decodes to `c4`; expect `{ type: 'hash', payload: 'YzQ%3D' }` and `decodeHashPayload` returning `'c4'`.
+   - Failure: garbage hash `?#!!!` logs an error and returns description `hash decode failed - see console` while keeping `events: []`.
+
+2. **Heuristic Pattern Parsing (Integration)**
+   - Success case: `$: note("c4 e4 g4 c5")` with `disableRuntime: true, cycles: 1` should emit four events with `time` of `0, 0.25, 0.5, 0.75` and labels `c4..c5` (mirrors `tests/strudel-loop.test.mjs`).
+   - Scale degrees: `$: n("0 2 4").scale("d:maj")` should yield MIDI pitches `[62, 66, 69]` and instrument `n`.
+   - Modifiers: `$: note("c4 g4").fast(2)` halves duration (0.25 -> 0.125). `.slow(3)` stretches to 0.375.
+   - Failure patterns: malformed strings such as `$: note("c4 e4` (missing quote) or unsupported modifiers `.reverse()` must raise warnings and return `{ events: [] }` rather than throw; unknown tokens should be skipped with a log entry.
+
+3. **Token / Note Parsing (Unit)**
+   - `parseNote('F#3')` => `54`; `parseNote('bb5')` => `70`.
+   - `parseToken('[c4 e4]')` => `['c4', 'e4']`; `parseToken('hat!3')` => `['hat','hat','hat']`.
+   - `interpretToken('sd', 'sound')` => `{ instrument: 'sd', pitch: null, label: 'sd' }`.
+   - `normalizeMiniPattern('c4 [e4 g4] *2')` expands to `['c4','[e4 g4]','[e4 g4]']`.
+
+4. **Voxel Mapping (Integration + Contract)**
+   - Input event `{ cycle: 0, time: 0.25, pitch: 64, instrument: 'note', patternLane: 0 }` should map to `x = -14`, `y = 11`, `z = 24` (per current `MUSIC_MAPPING`).
+   - Percussion example: event with `instrument: 'bd'` lands at `z = INSTRUMENT_LANES.bd * laneSpacing = -8` and ignores `patternLane`.
+   - Edge case: event with `pitch: 120` still produces finite `y` (no NaN) and respects `baseHeight`.
+
+5. **Runtime Guard Rails (Integration)**
+   - Mock `ensureStrudelRuntime` so `evaluate` throws; expect `buildStrudelEventsFromSource` to log `[strudelcraft] Runtime evaluation failed` and still return heuristic events for the same code.
+   - When runtime returns a pattern whose `queryArc` respects `cycles: 2`, ensure only two cycles are queried.
+
+6. **Artifact Verification (P2, optional integration)**
+   - Command `npm run test:artifacts -- --update-artifacts` should regenerate `tests/artifacts/strudel-loop.json` plus future fixtures and assert that JSON matches the expected schema:
+     - `sample` string, `description`, counts, arrays of `{ cycle, time, ... }` and `{ x, y, z, ... }`.
+
+---
+
+## Contract Tests
+
+- `eventsToVoxels` never produces overlapping voxels for events sharing the same `{ cycle, time, instrument }` tuple; duplicates must be merged or warned about.
+- All `y` values stay within `[MUSIC_MAPPING.baseHeight - 8, MUSIC_MAPPING.baseHeight + 64]` (tunable guardrail).
+- `z` aligns to either `INSTRUMENT_LANES` or `patternLane` derived offsets; no fractional `z`.
+- Instrument labels propagate unchanged from events so UI overlays remain accurate.
 
 ---
 
 ## Stretch Tests
 
-- **Chunking Logic**: Simulate larger event arrays to ensure chunk streaming boundaries (`MUSIC_MAPPING.chunkLength`) stay consistent.
-- **Scene Glue**: Lightweight smoke test that imports `src/main.js` in Node with DOM stubs to ensure module wiring does not throw.
-- **Performance Budgets**: Benchmark `eventsToVoxels` against a large synthetic set to guard against accidental O(n^2) regressions.
+- **Chunking Logic (Integration)**
+  - Generate 3 * chunkLength cycles and assert that chunk `n` ends exactly at time `n * chunkLength`. No gap between chunk `n` last event end and chunk `n+1` first event start; no overlapping timestamps.
+- **Scene Glue (Smoke)**
+  - With jsdom-like stubs for `document` and `window`, import `src/main.js` and assert no thrown errors. Should at least verify event listeners attach.
+- **Performance Budgets (Contract)**
+  - Feed `eventsToVoxels` with 10,000 synthetic events and assert processing completes within 50 ms on reference hardware (Node 20 on M1/M2). Flag if runtime exceeds 75 ms to catch regressions.
 
 ---
 
 ## Tooling Notes
 
-- Use plain Node + `assert/strict` for zero-dependency tests.
-- Consider adding `npm test` scripts (e.g., `node --test` or `vitest`) once more suites exist.
-- Document how to run artifacts-based tests inside `tests/README.md` (future work).
+- Current harness: `npm test` runs `node tests/strudel-loop.test.mjs`; expand to `node --test` once multiple suites exist.
+- Use inline assertions via `assert/strict`; prefer deterministic helpers over jest-style globals.
+- Artifact helpers should honor `process.argv` flags (e.g., `--update-artifacts`) to avoid noisy writes during automation.
