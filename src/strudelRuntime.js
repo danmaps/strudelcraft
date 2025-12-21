@@ -11,10 +11,27 @@ export function ensureStrudelRuntime() {
             if (typeof globalThis.initStrudel !== 'function') {
                 throw new Error('Strudel runtime not found after loading @strudel/web.');
             }
-            const initResult = globalThis.initStrudel();
-            return Promise.resolve(initResult).then(() => {
-                const evaluateFn = globalThis.evaluate ?? globalThis.strudel?.evaluate;
-                const hushFn = globalThis.hush ?? globalThis.strudel?.hush;
+            const initOptions = typeof globalThis.__strudelInitOptions === 'object' ? globalThis.__strudelInitOptions : undefined;
+            const initResult = initOptions ? globalThis.initStrudel(initOptions) : globalThis.initStrudel();
+            const awaited = typeof initResult?.then === 'function' ? initResult : Promise.resolve(initResult);
+            return awaited.then((api) => {
+                const apiRoot = api ?? globalThis.strudel ?? globalThis;
+                const evaluateFn =
+                    api?.evaluate ??
+                    api?.strudel?.evaluate ??
+                    apiRoot?.evaluate ??
+                    apiRoot?.strudel?.evaluate ??
+                    globalThis.evaluate ??
+                    globalThis.strudel?.evaluate;
+                const hushFn =
+                    api?.hush ??
+                    api?.strudel?.hush ??
+                    api?.commands?.hush ??
+                    apiRoot?.hush ??
+                    apiRoot?.strudel?.hush ??
+                    apiRoot?.commands?.hush ??
+                    globalThis.hush ??
+                    globalThis.strudel?.hush;
                 if (typeof evaluateFn !== 'function') {
                     throw new Error('Strudel evaluate() function unavailable after init.');
                 }

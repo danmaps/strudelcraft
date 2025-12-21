@@ -1,0 +1,238 @@
+<!doctype html>
+<html lang="en">
+
+<head>
+    <meta charset="utf-8" />
+    <title>Strudel Runtime Sanity</title>
+    <style>
+        body {
+            font-family: system-ui, sans-serif;
+            margin: 24px;
+            background: #111;
+            color: #f3f3f3;
+        }
+
+        h1 {
+            margin-top: 0;
+        }
+
+        .controls,
+        .playback {
+            margin-bottom: 16px;
+        }
+
+        input[type="text"] {
+            width: 60%;
+            padding: 8px;
+            border-radius: 4px;
+            border: 1px solid #333;
+            background: #1c1c1c;
+            color: #f3f3f3;
+        }
+
+        button {
+            margin: 4px 8px 4px 0;
+            padding: 8px 12px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            background: #2d6cdf;
+            color: white;
+        }
+
+        button.secondary {
+            background: #444;
+        }
+
+        pre {
+            background: #050505;
+            border: 1px solid #333;
+            padding: 12px;
+            border-radius: 4px;
+            overflow-x: auto;
+        }
+
+        .status {
+            font-size: 0.9rem;
+            color: #aaa;
+        }
+
+        .test-buttons {
+            display: flex;
+            flex-wrap: wrap;
+        }
+    </style>
+</head>
+
+<body>
+    <h1>Strudel Runtime Sanity</h1>
+    <div class="status" id="runtime-status">Runtime: not loaded</div>
+
+    <section class="playback">
+        <button id="play">Play Sample Loop</button>
+        <button id="stop" class="secondary">Hush</button>
+    </section>
+
+    <section class="controls">
+        <label>
+            Paste Strudel URL or code:
+            <br />
+            <input id="strudel-input" type="text" placeholder="https://strudel.tidalcycles.org/?#..." />
+        </label>
+        <button id="evaluate">Evaluate</button>
+        <div class="status" id="evaluate-status"></div>
+    </section>
+
+    <section>
+        <h3>Preset Test Cases</h3>
+        <div class="test-buttons" id="test-buttons"></div>
+    </section>
+
+    <section>
+        <h3>Events → Voxels JSON</h3>
+        <pre id="result">(results will appear here)</pre>
+    </section>
+
+    <script type="module">
+        globalThis.__strudelInitOptions = {
+            prebake: () => globalThis.samples?.('github:tidalcycles/dirt-samples'),
+        };
+
+        import { buildStrudelEventsFromSource } from '../src/strudel.js';
+        import { eventsToVoxels } from '../src/voxelMapper.js';
+        import { ensureStrudelRuntime } from '../src/strudelRuntime.js';
+
+        const runtimeStatus = document.getElementById('runtime-status');
+        const evaluateStatus = document.getElementById('evaluate-status');
+        const inputEl = document.getElementById('strudel-input');
+        const resultEl = document.getElementById('result');
+        const buttonsContainer = document.getElementById('test-buttons');
+
+        const PRESET_CASES = [
+            { label: 'Note Loop', sample: '$: note("c4 e4 g4 c5")' },
+            { label: 'Degree Scale', sample: '$: n("0 2 4").scale("d:major")' },
+            { label: 'Stacked Chord', sample: '$: note("[c4 e4] g4")' },
+            { label: 'Percussion Loop', sample: '$: s("bd hh sd hh")' },
+        ];
+
+        function logResult(payload) {
+            resultEl.textContent = JSON.stringify(payload, null, 2);
+        }
+
+        function inferSourceFromInput(raw) {
+            if (!raw) return null;
+            const trimmed = raw.trim();
+            if (!trimmed) return null;
+
+            try {
+                const parsedUrl = new URL(trimmed);
+                if (parsedUrl.searchParams.has('code')) {
+                    return {
+                        type: 'code',
+                        payload: decodeURIComponent(parsedUrl.searchParams.get('code')),
+                    };
+                }
+                if (parsedUrl.hash && parsedUrl.hash.length > 1) {
+                    return { type: 'hash', payload: parsedUrl.hash.slice(1), sourceUrl: trimmed };
+                }
+                const query = parsedUrl.search.replace('?', '');
+                if (query) {
+                    return { type: 'shareId', payload: query };
+                }
+            } catch (error) {
+                // Not a URL - fall through to pattern heuristics.
+            }
+
+            if (trimmed.startsWith('#')) {
+                return { type: 'hash', payload: trimmed.slice(1) };
+            }
+            if (trimmed.startsWith('$') || trimmed.includes(' ')) {
+                return { type: 'code', payload: trimmed };
+            }
+            return { type: 'shareId', payload: trimmed };
+        }
+
+        async function evaluateSource(rawInput) {
+            const source = inferSourceFromInput(rawInput);
+            if (!source) {
+                evaluateStatus.textContent = 'Provide a Strudel URL, hash, or inline code.';
+                return;
+            }
+            evaluateStatus.textContent = 'Evaluating...';
+            try {
+                const result = await buildStrudelEventsFromSource(source, { cycles: 2 });
+                const voxels = eventsToVoxels(result.events);
+                logResult({
+                    sourceDescription: result.description,
+                    eventCount: result.events.length,
+                    voxelCount: voxels.length,
+                    events: result.events,
+                    voxels,
+                });
+                evaluateStatus.textContent = `Done (${result.description})`;
+            } catch (error) {
+                console.error(error);
+                evaluateStatus.textContent = 'Evaluation failed - see console.';
+                logResult({ error: error.message });
+            }
+        }
+
+        async function ensureRuntime() {
+            try {
+                runtimeStatus.textContent = 'Runtime: loading...';
+                const runtime = await ensureStrudelRuntime();
+                runtimeStatus.textContent = 'Runtime: ready';
+                return runtime;
+        } catch (error) {
+            runtimeStatus.textContent = 'Runtime: failed to load (check console)';
+            console.error(error);
+                throw error;
+            }
+        }
+
+        document.getElementById('play').addEventListener('click', async () => {
+            try {
+                const runtime = await ensureRuntime();
+                await runtime.evaluate(`note('<c a f e>(3,8)').jux(rev).play()`);
+            } catch (error) {
+                evaluateStatus.textContent = 'Play failed - see console.';
+            }
+        });
+
+        document.getElementById('stop').addEventListener('click', async () => {
+            try {
+                const runtime = await ensureRuntime();
+                if (typeof runtime.hush === 'function') {
+                    runtime.hush();
+                }
+            } catch (error) {
+                evaluateStatus.textContent = 'Hush failed - see console.';
+            }
+        });
+
+        document.getElementById('evaluate').addEventListener('click', () => {
+            evaluateSource(inputEl.value);
+        });
+
+        inputEl.addEventListener('keydown', (event) => {
+            if (event.key === 'Enter') {
+                evaluateSource(inputEl.value);
+            }
+        });
+
+        PRESET_CASES.forEach((testCase) => {
+            const button = document.createElement('button');
+            button.textContent = testCase.label;
+            button.classList.add('secondary');
+            button.addEventListener('click', () => {
+                inputEl.value = testCase.sample;
+                evaluateSource(testCase.sample);
+            });
+            buttonsContainer.appendChild(button);
+        });
+
+        logResult({ message: 'Paste a Strudel URL or tap a preset to begin.' });
+    </script>
+</body>
+
+</html>
