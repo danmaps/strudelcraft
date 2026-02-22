@@ -4,6 +4,27 @@
 
 ---
 
+## First 5 Minutes (Quickstart)
+
+Option A (simple): open `index.html` in a browser and paste a Strudel URL.
+
+Option B (recommended): serve locally so browser security policies don’t get in the way.
+
+```bash
+# from the repo root
+python -m http.server 8000
+# then open
+# http://localhost:8000
+```
+
+Tests:
+
+```bash
+npm test
+```
+
+---
+
 ## Why Strudelcraft?
 
 Strudelcraft is a playful visualization toy—a way to wander through Strudel code for the sheer joy of it. It is meant for curiosity, learning, and art, not for debugging or shipping features. Software can exist purely because it makes us smile.
