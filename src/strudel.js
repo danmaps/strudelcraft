@@ -22,41 +22,67 @@ const SCALE_INTERVALS = {
 export function getStrudelSourceFromUrl() {
     const params = new URLSearchParams(window.location.search);
     if (params.has('code')) {
-        return {
-            type: 'code',
-            payload: decodeURIComponent(params.get('code')).trim(),
-        };
+        return parseStrudelSourceInput(decodeURIComponent(params.get('code')));
     }
 
     const rawQuery = window.location.search.replace('?', '').trim();
     if (rawQuery && rawQuery !== '') {
         if (rawQuery.startsWith('#')) {
-            return { type: 'hash', payload: rawQuery.slice(1) };
+            return parseStrudelSourceInput(`#${rawQuery.slice(1)}`);
         }
         return { type: 'shareId', payload: rawQuery };
     }
 
     const hash = window.location.hash;
     if (hash && hash.length > 1) {
-        const trimmed = hash.slice(1).trim();
-        if (!trimmed) return null;
-        if (/^https?:\/\//i.test(trimmed)) {
-            try {
-                const nestedUrl = new URL(trimmed);
-                if (nestedUrl.hash && nestedUrl.hash.length > 1) {
+        return parseStrudelSourceInput(hash.slice(1));
+    }
+    return null;
+}
+
+export function parseStrudelSourceInput(input = '') {
+    const trimmed = input.trim();
+    if (!trimmed) return null;
+
+    if (/^https?:\/\//i.test(trimmed)) {
+        try {
+            const parsedUrl = new URL(trimmed);
+            const params = new URLSearchParams(parsedUrl.search);
+            if (params.has('code')) {
+                return parseStrudelSourceInput(decodeURIComponent(params.get('code')));
+            }
+            if (parsedUrl.hash && parsedUrl.hash.length > 1) {
+                return {
+                    type: 'hash',
+                    payload: parsedUrl.hash.slice(1),
+                    sourceUrl: trimmed,
+                };
+            }
+            const searchPayload = parsedUrl.search.replace(/^\?/, '').trim();
+            if (searchPayload) {
+                if (searchPayload.startsWith('#')) {
                     return {
                         type: 'hash',
-                        payload: nestedUrl.hash.slice(1),
+                        payload: searchPayload.slice(1),
                         sourceUrl: trimmed,
                     };
                 }
-            } catch (error) {
-                console.error('[strudelcraft] Failed to parse nested Strudel URL from hash:', error);
+                return {
+                    type: 'shareId',
+                    payload: searchPayload,
+                    sourceUrl: trimmed,
+                };
             }
+        } catch (error) {
+            console.error('[strudelcraft] Failed to parse Strudel URL input:', error);
         }
-        return { type: 'hash', payload: trimmed };
     }
-    return null;
+
+    if (trimmed.startsWith('#')) {
+        return { type: 'hash', payload: trimmed.slice(1) };
+    }
+
+    return { type: 'code', payload: trimmed };
 }
 
 export async function buildStrudelEventsFromSource(source, options = {}) {
@@ -65,14 +91,17 @@ export async function buildStrudelEventsFromSource(source, options = {}) {
         return { code, description: `${description} (0 lanes)`, events: [] };
     }
     let runtimeResult = null;
-    if (!options.disableRuntime) {
+    const canUseRuntime = typeof document !== 'undefined';
+    if (!options.disableRuntime && canUseRuntime) {
         runtimeResult = await tryRuntimeEvaluation(code, options);
     }
     if (runtimeResult?.events?.length) {
         const runtimeDescription = `${description} (runtime)`;
         return { code, description: runtimeDescription, events: runtimeResult.events };
     }
-    console.warn('[strudelcraft] Falling back to heuristic parser.');
+    if (!options.disableRuntime && canUseRuntime) {
+        console.warn('[strudelcraft] Falling back to heuristic parser.');
+    }
     const fallback = buildHeuristicEvents(code, description, options);
     return fallback;
 }

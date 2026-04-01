@@ -2,6 +2,8 @@
 # Strudelcraft
 **A spatial renderer for live-coded music**
 
+> Historical note: this document captures the earlier 3D voxel direction. The active scope has been narrowed to a 2D drum sequencer.
+
 ---
 
 ## Overview

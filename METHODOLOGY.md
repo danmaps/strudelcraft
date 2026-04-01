@@ -1,5 +1,7 @@
 # Strudelcraft Visualization Methodology
 
+> Historical note: these are the older 3D visualization notes. The current app scope is a 2D drum sequencer.
+
 Notes on how we turn Strudel code (Tidal-inspired patterns) into a 3D world. The model now favors running the actual Strudel runtime (`@strudel/web`) in-browser and only falls back to heuristics when evaluation fails.
 
 ---

@@ -94,7 +94,7 @@ async function runTestCase(testCase) {
     const source = { type: 'code', payload: testCase.sample };
     const { description, events } = await buildStrudelEventsFromSource(source, {
         cycles: testCase.cycles ?? 1,
-        // disableRuntime: true,
+        disableRuntime: true,
     });
 
     assert.ok(events.length > 0, `${testCase.name} should emit at least one event`);

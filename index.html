@@ -4,102 +4,302 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Strudelcraft</title>
+    <title>Strudelcraft Drum Sequencer</title>
     <style>
+        :root {
+            --bg: #120d0a;
+            --panel: rgba(32, 21, 16, 0.82);
+            --panel-strong: rgba(49, 31, 24, 0.9);
+            --line: rgba(255, 222, 183, 0.12);
+            --line-strong: rgba(255, 198, 112, 0.24);
+            --text: #f4e6d3;
+            --muted: #d0b694;
+            --accent: #ff9c3a;
+            --accent-strong: #ff5d36;
+            --active: #ffd56e;
+            --step: #6e5a48;
+            --step-strong: #8b725b;
+            --shadow: 0 20px 60px rgba(0, 0, 0, 0.45);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
         body {
             margin: 0;
-            overflow: hidden;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(255, 143, 48, 0.2), transparent 34%),
+                radial-gradient(circle at top right, rgba(255, 216, 108, 0.12), transparent 30%),
+                linear-gradient(180deg, #24160f 0%, #120d0a 60%, #0c0907 100%);
+        }
+
+        body::before {
+            content: "";
+            position: fixed;
+            inset: 0;
+            pointer-events: none;
+            background:
+                linear-gradient(rgba(255, 255, 255, 0.018) 1px, transparent 1px),
+                linear-gradient(90deg, rgba(255, 255, 255, 0.018) 1px, transparent 1px);
+            background-size: 24px 24px;
+            mask-image: radial-gradient(circle at center, black 45%, transparent 95%);
+        }
+
+        #sequencer-app {
+            width: min(1220px, calc(100vw - 32px));
+            margin: 24px auto 40px;
+            display: grid;
+            gap: 18px;
+        }
+
+        .control-panel,
+        .sequencer-panel,
+        .source-card {
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+        }
+
+        h2 {
+            margin: 0;
+            font-weight: 700;
+        }
+
+        .field span,
+        .source-header h2 {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.74rem;
+        }
+
+        .control-panel {
+            padding: 16px 18px;
+            display: flex;
+            flex-wrap: wrap;
+            gap: 14px;
+            align-items: end;
+        }
+
+        .transport-buttons {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 10px;
+        }
+
+        button,
+        select,
+        input,
+        textarea {
+            font: inherit;
+        }
+
+        button,
+        select,
+        input {
+            border-radius: 14px;
+            border: 1px solid var(--line-strong);
+            background: rgba(255, 244, 227, 0.05);
+            color: var(--text);
+        }
+
+        button {
+            padding: 11px 16px;
+            cursor: pointer;
+            transition: transform 120ms ease, background 120ms ease, border-color 120ms ease;
+        }
+
+        button:hover,
+        select:hover,
+        input:hover {
+            border-color: rgba(255, 209, 128, 0.5);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        button.primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+            color: #170f0b;
+            font-weight: 700;
+        }
+
+        .field {
+            display: grid;
+            gap: 8px;
+            min-width: 124px;
+        }
+
+        .field input,
+        .field select {
+            padding: 11px 14px;
+        }
+
+        .field-summary {
+            min-width: 180px;
+        }
+
+        .field-wide {
+            min-width: 220px;
+        }
+
+        .field-status {
+            min-width: min(360px, 100%);
+            flex: 1 1 320px;
+        }
+
+        .field strong {
+            line-height: 1.35;
+        }
+
+        .sequencer-panel {
+            padding: 18px;
+            overflow-x: auto;
+        }
+
+        .transport-row,
+        .lane-grid {
+            min-width: 900px;
+        }
+
+        .transport-row {
+            display: grid;
+            grid-template-columns: 72px 1fr;
+            gap: 12px;
+            margin-bottom: 10px;
+            align-items: center;
+        }
+
+        .corner-label,
+        .lane-label {
+            display: grid;
+            place-items: center;
+            min-height: 46px;
+            border-radius: 14px;
+            background: rgba(255, 255, 255, 0.04);
+            border: 1px solid var(--line);
+            font-weight: 700;
+            letter-spacing: 0.12em;
+            text-transform: uppercase;
+            color: var(--muted);
+        }
+
+        .transport-grid,
+        .lane-steps {
+            display: grid;
+            grid-template-columns: repeat(16, minmax(38px, 1fr));
+            gap: 8px;
+        }
+
+        .transport-step {
+            min-height: 46px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .transport-step.is-current {
+            background: linear-gradient(180deg, rgba(255, 213, 110, 0.4), rgba(255, 93, 54, 0.32));
+            border-color: rgba(255, 213, 110, 0.8);
+            color: #fff0cf;
+        }
+
+        .lane-grid {
+            display: grid;
+            grid-template-columns: 72px 1fr;
+            gap: 10px 12px;
+        }
+
+        .step-button {
+            min-height: 46px;
+            background: linear-gradient(180deg, rgba(110, 90, 72, 0.36), rgba(61, 47, 36, 0.9));
+            border-color: rgba(255, 232, 197, 0.14);
+            position: relative;
+        }
+
+        .step-button::after {
+            content: "";
+            position: absolute;
+            inset: 10px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.04);
+        }
+
+        .step-button.is-active {
+            background: linear-gradient(180deg, rgba(255, 213, 110, 0.9), rgba(255, 148, 42, 0.85));
+            border-color: rgba(255, 214, 120, 0.92);
+        }
+
+        .step-button.is-active::after {
+            background: rgba(255, 248, 219, 0.22);
+        }
+
+        .step-button.is-current {
+            outline: 2px solid rgba(255, 118, 69, 0.6);
+            outline-offset: 2px;
+        }
+
+        .step-button.is-hit-current {
+            box-shadow: 0 0 24px rgba(255, 130, 82, 0.45);
+        }
+
+        .source-panel {
+            display: grid;
+            grid-template-columns: repeat(2, minmax(0, 1fr));
+            gap: 18px;
+        }
+
+        .source-card {
+            padding: 16px;
+            display: grid;
+            gap: 12px;
+        }
+
+        .source-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            gap: 12px;
+        }
+
+        textarea {
+            min-height: 208px;
+            width: 100%;
+            resize: vertical;
+            padding: 14px 16px;
+            border-radius: 18px;
+            border: 1px solid var(--line);
+            background: rgba(15, 10, 8, 0.82);
+            color: var(--text);
+            line-height: 1.5;
+            font-family: "Consolas", "SFMono-Regular", monospace;
+        }
+
+        @media (max-width: 920px) {
+            #sequencer-app {
+                width: min(100vw - 20px, 1220px);
+                margin-top: 14px;
             }
 
-        canvas {
-            display: block;
-        }
+            .source-panel {
+                grid-template-columns: 1fr;
+            }
 
-        #crosshair {
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 20px;
-            height: 2px;
-            background-color: white;
-            transform: translate(-50%, -50%);
-            pointer-events: none;
-            z-index: 100;
-        }
-
-        #crosshair::after {
-            content: '';
-            position: absolute;
-            top: 50%;
-            left: 50%;
-            width: 2px;
-            height: 20px;
-            background-color: white;
-            transform: translate(-50%, -50%);
-        }
-
-        #github-link {
-            position: absolute;
-            bottom: 20px;
-            right: 20px;
-            z-index: 100;
-            display: flex;
-            align-items: center;
-            justify-content: center;
-            background-color: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 50%;
-            transition: transform 0.2s ease-in-out, background-color 0.2s;
-        }
-
-        #github-link:hover {
-            transform: scale(1.1);
-            background-color: rgba(0, 0, 0, 0.8);
-        }
-
-        #github-link svg {
-            width: 32px;
-            height: 32px;
-            fill: white;
-        }
-
-        #instructions {
-            position: absolute;
-            bottom: 20px;
-            left: 20px;
-            color: white;
-            font-family: monospace;
-            font-size: 14px;
-            background-color: rgba(0, 0, 0, 0.5);
-            padding: 10px;
-            border-radius: 5px;
-            pointer-events: none;
-            user-select: none;
+            .control-panel,
+            .sequencer-panel,
+            .source-card {
+                border-radius: 20px;
+            }
         }
     </style>
-    <!-- Three.js CDN -->
-    <script type="importmap">
-        {
-            "imports": {
-                "three": "https://unpkg.com/three@0.160.0/build/three.module.js",
-                "three/addons/": "https://unpkg.com/three@0.160.0/examples/jsm/"
-            }
-        }
-    </script>
 </head>
 
 <body>
-    <div id="crosshair"></div>
-    <div id="instructions">
-        <div>WASD / Arrow keys: Move</div>
-        <div>Mouse: Look</div>
-        <div>Space: Jump / Ascend (flight)</div>
-        <div>Shift: Descend (flight)</div>
-        <div>F: Toggle flight (<span id="flight-status">grounded</span>)</div>
-        <div>Left Click: Remove block</div>
-        <div>Right Click: Place block</div>
-        <div>Input: <span id="strudel-status">default terrain</span></div>
-    </div>
     <script type="module" src="src/main.js"></script>
 </body>
 
