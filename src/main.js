@@ -15,15 +15,55 @@ import {
 import { createTr808Ui } from './tr808Ui.js';
 
 const STORAGE_KEY = 'strudelcraft:sequencer-state';
+const IMPORT_EXAMPLES = [
+    {
+        key: 'rock-basic',
+        label: '1. Basic Rock Beat',
+        code: '$: s("bd hh hh hh sd hh hh hh bd hh hh hh sd hh hh oh")',
+        status: 'Loaded a basic rock beat example into the import box. Click Import to map it into the grid.',
+    },
+    {
+        key: 'single-phrase',
+        label: '2. Single Phrase',
+        code: '$: s("bd [hh hh] sd hh bd hh [sd hh] hh")',
+        status: 'Loaded a single-phrase drum example with multiple instruments living in one line.',
+    },
+    {
+        key: 'staggered-clusters',
+        label: '3. Staggered Clusters',
+        code: '$: s("bd hh sd [hh hh] bd [sd hh] hh oh")',
+        status: 'Loaded a clustered one-line example with bracketed subdivisions.',
+    },
+    {
+        key: 'stacked-accents',
+        label: '4. Stacked Accents',
+        code: '$: s("[bd hh] hh sd hh [bd sd] hh oh hh")',
+        status: 'Loaded a stacked-hit example that starts stressing same-step combinations.',
+    },
+    {
+        key: 'ratchet-pulse',
+        label: '5. Ratchet Pulse',
+        code: '$: s("bd*2 hh sd hh [bd hh sd] oh")',
+        status: 'Loaded a repeated-hit example that begins to show where the 16-step grid flattens detail.',
+    },
+    {
+        key: 'dense-break',
+        label: '6. Dense Break',
+        code: '$: s("[bd hh sd] [hh hh] bd [sd hh bd] oh")',
+        status: 'Loaded a dense composite phrase that pushes beyond neat one-lane-per-instrument thinking.',
+    },
+];
 
 const synth = new DrumSynth();
 const ui = createTr808Ui({
+    importExamples: IMPORT_EXAMPLES,
     onToggleStep: handleToggleStep,
     onStart: handleStart,
     onStop: handleStop,
     onClear: handleClear,
     onRandomize: handleRandomize,
     onImport: handleImport,
+    onImportExampleSelect: handleImportExampleSelect,
     onCopy: handleCopy,
     onPresetChange: handlePresetChange,
     onBpmChange: handleBpmChange,
@@ -55,6 +95,7 @@ async function bootstrap() {
             status: 'Recovered your last grid from local storage.',
             sourceInput: patternToStrudel(pattern),
             presetKey: '',
+            importExampleKey: '',
         });
         return;
     }
@@ -68,16 +109,18 @@ async function bootstrap() {
         status: `Loaded the ${defaultPreset.name.toLowerCase()} preset. Click steps to reshape it.`,
         sourceInput: patternToStrudel(pattern),
         presetKey: defaultPresetKey,
+        importExampleKey: '',
     });
 }
 
-function syncUi({ description, status, sourceInput, presetKey }) {
+function syncUi({ description, status, sourceInput, presetKey, importExampleKey }) {
     ui.setPattern(pattern);
     ui.setBpm(bpm);
     ui.setPatternDescription(description);
     ui.setStatus(status);
     ui.setSourceInput(sourceInput ?? patternToStrudel(pattern));
     ui.setPresetValue(presetKey ?? '');
+    ui.setImportExampleValue(importExampleKey ?? '');
     persistState();
 }
 
@@ -92,6 +135,7 @@ async function importSource(source, successStatus) {
             status: successStatus,
             sourceInput: code || '',
             presetKey: '',
+            importExampleKey: findMatchingImportExampleKey(code || ''),
         });
     } catch (error) {
         console.error('[strudelcraft] Failed to import source', error);
@@ -106,6 +150,16 @@ async function handleImport(text) {
         return;
     }
     await importSource(source, 'Imported drum hits into the 16-step grid.');
+}
+
+function handleImportExampleSelect(exampleKey) {
+    const example = IMPORT_EXAMPLES.find((entry) => entry.key === exampleKey);
+    if (!example) {
+        ui.setStatus('Choose an example to load it into the import box.');
+        return;
+    }
+    ui.setSourceInput(example.code);
+    ui.setStatus(example.status);
 }
 
 async function handleStart() {
@@ -131,6 +185,7 @@ async function handleToggleStep(rowKey, stepIndex) {
     pattern = togglePatternStep(pattern, rowKey, stepIndex);
     ui.setPattern(pattern);
     ui.setPresetValue('');
+    ui.setImportExampleValue('');
     ui.setStatus(`Toggled ${rowKey.toUpperCase()} on step ${stepIndex + 1}.`);
     persistState();
 
@@ -147,6 +202,7 @@ function handleClear() {
     handleStop();
     ui.setPattern(pattern);
     ui.setPresetValue('');
+    ui.setImportExampleValue('');
     ui.setPatternDescription('manual grid');
     ui.setSourceInput(patternToStrudel(pattern));
     ui.setStatus('Cleared every lane.');
@@ -157,6 +213,7 @@ function handleRandomize() {
     pattern = randomizePattern();
     ui.setPattern(pattern);
     ui.setPresetValue('');
+    ui.setImportExampleValue('');
     ui.setPatternDescription('randomized grid');
     ui.setSourceInput(patternToStrudel(pattern));
     ui.setStatus('Generated a fresh sketch pattern.');
@@ -174,6 +231,7 @@ function handlePresetChange(presetKey) {
         status: `Loaded the ${preset.name.toLowerCase()} preset.`,
         sourceInput: patternToStrudel(pattern),
         presetKey,
+        importExampleKey: '',
     });
 }
 
@@ -264,4 +322,10 @@ function loadPersistedState() {
 
 function clamp(value, min, max) {
     return Math.min(max, Math.max(min, value));
+}
+
+function findMatchingImportExampleKey(code) {
+    const normalizedCode = code.trim();
+    const match = IMPORT_EXAMPLES.find((example) => example.code === normalizedCode);
+    return match?.key ?? '';
 }

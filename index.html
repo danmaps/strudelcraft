@@ -267,6 +267,31 @@
             gap: 12px;
         }
 
+        .source-actions {
+            display: flex;
+            flex-wrap: wrap;
+            align-items: end;
+            justify-content: flex-end;
+            gap: 10px;
+        }
+
+        .inline-field {
+            display: grid;
+            gap: 6px;
+            min-width: 220px;
+        }
+
+        .inline-field span {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.68rem;
+        }
+
+        .inline-field select {
+            padding: 11px 14px;
+        }
+
         textarea {
             min-height: 208px;
             width: 100%;
@@ -288,6 +313,19 @@
 
             .source-panel {
                 grid-template-columns: 1fr;
+            }
+
+            .source-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .source-actions {
+                justify-content: stretch;
+            }
+
+            .inline-field {
+                min-width: 100%;
             }
 
             .control-panel,

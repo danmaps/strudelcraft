@@ -2,17 +2,20 @@ import { DEFAULT_BPM, PRESETS, ROWS, STEP_COUNT, countActiveSteps, patternToStru
 
 export class Tr808Ui {
     constructor({
+        importExamples = [],
         onToggleStep,
         onStart,
         onStop,
         onClear,
         onRandomize,
         onImport,
+        onImportExampleSelect,
         onCopy,
         onPresetChange,
         onBpmChange,
     } = {}) {
         this.handlers = {
+            onImportExampleSelect,
             onToggleStep,
             onStart,
             onStop,
@@ -23,6 +26,7 @@ export class Tr808Ui {
             onPresetChange,
             onBpmChange,
         };
+        this.importExamples = importExamples;
 
         this.stepButtons = new Map();
         this.transportButtons = [];
@@ -90,6 +94,13 @@ export class Tr808Ui {
         const input = this.root.querySelector('[data-role="source-input"]');
         if (input) {
             input.value = text;
+        }
+    }
+
+    setImportExampleValue(exampleKey) {
+        const select = this.root.querySelector('[data-role="import-example"]');
+        if (select) {
+            select.value = exampleKey ?? '';
         }
     }
 
@@ -166,7 +177,18 @@ export class Tr808Ui {
                 <div class="source-card">
                     <div class="source-header">
                         <h2>Import Strudel</h2>
-                        <button type="button" data-action="import">Import</button>
+                        <div class="source-actions">
+                            <label class="inline-field">
+                                <span>Example</span>
+                                <select data-role="import-example">
+                                    <option value="">Choose example</option>
+                                    ${this.importExamples
+                                        .map((example) => `<option value="${example.key}">${example.label}</option>`)
+                                        .join('')}
+                                </select>
+                            </label>
+                            <button type="button" data-action="import">Import</button>
+                        </div>
                     </div>
                     <textarea data-role="source-input" spellcheck="false" placeholder="Paste Strudel code, a hash URL, or a strudel.tidalcycles.org link."></textarea>
                 </div>
@@ -263,6 +285,11 @@ export class Tr808Ui {
         const presetSelect = root.querySelector('[data-role="preset"]');
         presetSelect?.addEventListener('change', (event) => {
             this.handlers.onPresetChange?.(event.target.value);
+        });
+
+        const importExampleSelect = root.querySelector('[data-role="import-example"]');
+        importExampleSelect?.addEventListener('change', (event) => {
+            this.handlers.onImportExampleSelect?.(event.target.value);
         });
 
         return root;
