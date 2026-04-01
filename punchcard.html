@@ -1,0 +1,303 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Strudelcraft Punchcard Lab</title>
+    <style>
+        :root {
+            --bg: #0b0f12;
+            --panel: rgba(18, 24, 30, 0.9);
+            --panel-strong: rgba(25, 33, 40, 0.96);
+            --line: rgba(255, 255, 255, 0.08);
+            --line-strong: rgba(255, 185, 118, 0.25);
+            --text: #edf2f7;
+            --muted: #97a3af;
+            --accent: #ffb04b;
+            --accent-strong: #ff7c4d;
+            --shadow: 0 26px 80px rgba(0, 0, 0, 0.42);
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            color: var(--text);
+            font-family: "Avenir Next", "Segoe UI", sans-serif;
+            background:
+                radial-gradient(circle at top left, rgba(255, 165, 74, 0.18), transparent 28%),
+                radial-gradient(circle at top right, rgba(86, 161, 255, 0.13), transparent 24%),
+                linear-gradient(180deg, #11161b 0%, #090c10 62%, #05070a 100%);
+        }
+
+        .page {
+            width: min(1440px, calc(100vw - 28px));
+            margin: 18px auto 32px;
+            display: grid;
+            gap: 18px;
+        }
+
+        .editor-card,
+        .punchcard-card {
+            border: 1px solid var(--line);
+            border-radius: 24px;
+            background: var(--panel);
+            box-shadow: var(--shadow);
+            backdrop-filter: blur(18px);
+        }
+
+        .editor-card {
+            padding: 18px;
+            display: grid;
+            gap: 14px;
+        }
+
+        .eyebrow {
+            margin: 0;
+            color: var(--accent);
+            text-transform: uppercase;
+            letter-spacing: 0.14em;
+            font-size: 0.76rem;
+            font-weight: 700;
+        }
+
+        h1,
+        h2,
+        p {
+            margin: 0;
+        }
+
+        .hero {
+            display: grid;
+            gap: 10px;
+        }
+
+        .hero h1 {
+            font-size: clamp(2rem, 4vw, 3.4rem);
+            line-height: 0.92;
+            max-width: 12ch;
+        }
+
+        .hero p {
+            max-width: 72ch;
+            color: var(--muted);
+            line-height: 1.55;
+        }
+
+        .toolbar {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .field {
+            display: grid;
+            gap: 6px;
+            min-width: 220px;
+        }
+
+        .field span {
+            color: var(--muted);
+            text-transform: uppercase;
+            letter-spacing: 0.12em;
+            font-size: 0.7rem;
+        }
+
+        select,
+        button,
+        textarea {
+            font: inherit;
+        }
+
+        select,
+        button {
+            border-radius: 14px;
+            border: 1px solid var(--line-strong);
+            background: rgba(255, 255, 255, 0.04);
+            color: var(--text);
+        }
+
+        select {
+            padding: 11px 14px;
+        }
+
+        button {
+            padding: 11px 16px;
+            cursor: pointer;
+            transition: transform 120ms ease, border-color 120ms ease, background 120ms ease;
+        }
+
+        button:hover,
+        select:hover {
+            border-color: rgba(255, 192, 123, 0.56);
+        }
+
+        button:hover {
+            transform: translateY(-1px);
+        }
+
+        .primary {
+            background: linear-gradient(135deg, var(--accent), var(--accent-strong));
+            color: #1b1008;
+            font-weight: 700;
+        }
+
+        textarea {
+            min-height: 240px;
+            width: 100%;
+            resize: vertical;
+            padding: 18px 20px;
+            border-radius: 20px;
+            border: 1px solid var(--line);
+            background: rgba(8, 12, 16, 0.92);
+            color: var(--text);
+            line-height: 1.6;
+            font-family: "Consolas", "SFMono-Regular", monospace;
+            font-size: 0.95rem;
+        }
+
+        .meta {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px 24px;
+            color: var(--muted);
+            font-size: 0.94rem;
+        }
+
+        .meta strong {
+            color: var(--text);
+        }
+
+        .punchcard-shell {
+            width: 100vw;
+            margin-left: calc(50% - 50vw);
+        }
+
+        .punchcard-card {
+            border-radius: 0;
+            border-left: none;
+            border-right: none;
+            padding: 18px 20px 22px;
+            background: var(--panel-strong);
+        }
+
+        .punchcard-header {
+            width: min(1440px, calc(100vw - 28px));
+            margin: 0 auto 12px;
+            display: flex;
+            justify-content: space-between;
+            gap: 12px;
+            align-items: end;
+        }
+
+        .punchcard-header p {
+            color: var(--muted);
+            max-width: 68ch;
+            line-height: 1.45;
+        }
+
+        .canvas-wrap {
+            width: min(100vw, 100%);
+        }
+
+        canvas {
+            display: block;
+            width: 100%;
+            min-height: 240px;
+            border-top: 1px solid rgba(255, 255, 255, 0.04);
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            background: #0f1215;
+        }
+
+        .empty {
+            width: min(1440px, calc(100vw - 28px));
+            margin: 10px auto 0;
+            color: var(--muted);
+            font-size: 0.92rem;
+        }
+
+        @media (max-width: 920px) {
+            .page {
+                width: min(100vw - 18px, 1440px);
+                margin-top: 10px;
+            }
+
+            .editor-card {
+                border-radius: 20px;
+            }
+
+            .toolbar,
+            .punchcard-header {
+                align-items: stretch;
+                flex-direction: column;
+            }
+
+            .field {
+                min-width: 100%;
+            }
+
+            .punchcard-card {
+                padding-inline: 10px;
+            }
+
+            .punchcard-header,
+            .empty {
+                width: min(100vw - 18px, 1440px);
+            }
+        }
+    </style>
+</head>
+
+<body>
+    <main class="page">
+        <section class="editor-card">
+            <div class="hero">
+                <p class="eyebrow">Strudelcraft Lab</p>
+                <h1>Editor to Punchcard</h1>
+                <p>Write Strudel directly, render the result into a wide punchcard-style timeline, and keep Strudel itself as the event engine. Use <code>Ctrl+Enter</code> to render and <code>Ctrl+Shift+Enter</code> to play.</p>
+            </div>
+
+            <div class="toolbar">
+                <label class="field">
+                    <span>Example</span>
+                    <select data-role="example"></select>
+                </label>
+                <button type="button" class="primary" data-action="render">Render Punchcard</button>
+                <button type="button" data-action="play">Play</button>
+                <button type="button" data-action="stop">Stop</button>
+            </div>
+
+            <textarea data-role="editor" spellcheck="false" placeholder="Write Strudel here..."></textarea>
+
+            <div class="meta">
+                <div><strong>Status:</strong> <span data-role="status">Booting Strudel engine...</span></div>
+                <div><strong>Stats:</strong> <span data-role="stats">Waiting for the first render.</span></div>
+            </div>
+        </section>
+    </main>
+
+    <section class="punchcard-shell">
+        <div class="punchcard-card">
+            <div class="punchcard-header">
+                <div>
+                    <p class="eyebrow">Punchcard</p>
+                    <h2>Wide Timeline View</h2>
+                </div>
+                <p>Each row is an instrument lane inferred from the rendered Strudel events. Wider marks indicate longer durations, and brighter marks indicate stronger velocity.</p>
+            </div>
+            <div class="canvas-wrap">
+                <canvas data-role="punchcard"></canvas>
+            </div>
+            <p class="empty" data-role="empty">The canvas will fill in once Strudel events are rendered.</p>
+        </div>
+    </section>
+
+    <script type="module" src="src/punchcardPage.js"></script>
+</body>
+
+</html>

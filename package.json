@@ -4,7 +4,7 @@
     "private": true,
     "type": "module",
     "scripts": {
-        "test": "node tests/strudel-loop.test.mjs && node tests/sequencer-pattern.test.mjs",
+        "test": "node tests/strudel-loop.test.mjs && node tests/sequencer-pattern.test.mjs && node tests/punchcard-model.test.mjs",
         "test:artifacts": "node tests/strudel-loop.test.mjs --update-artifacts"
     }
 }

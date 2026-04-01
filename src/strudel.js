@@ -164,15 +164,14 @@ async function tryRuntimeEvaluation(code, options) {
     if (!trimmed) return null;
     try {
         const runtime = await ensureStrudelRuntime();
-        const { letEntries, patternBlocks } = parseRuntimeBlocks(trimmed);
-        console.log('[strudelcraft] Runtime blocks detected:', { lets: letEntries.length, outputs: patternBlocks.length });
+        const program = parseRuntimeProgram(trimmed);
+        console.log('[strudelcraft] Runtime blocks detected:', {
+            lets: program.letEntries.length,
+            setups: program.setupStatements.length,
+            outputs: program.patternBlocks.length,
+        });
 
-        for (const entry of letEntries) {
-            const expr = `globalThis.${entry.name} = (${entry.expression.trim()})`;
-            await runtime.evaluate(expr);
-        }
-
-        if (!patternBlocks.length) {
+        if (!program.patternBlocks.length) {
             const evaluation = await runtime.evaluate(trimmed);
             const pattern = evaluation?.pattern;
             if (!pattern) return null;
@@ -181,17 +180,27 @@ async function tryRuntimeEvaluation(code, options) {
         }
 
         const runtimeEvents = [];
-        for (let i = 0; i < patternBlocks.length; i += 1) {
-            const block = patternBlocks[i].trim();
-            if (!block) continue;
-            const evaluation = await runtime.evaluate(block);
-            const pattern = evaluation?.pattern;
-            if (!pattern || typeof pattern.queryArc !== 'function') {
-                console.warn(`[strudelcraft] Runtime block #${i} did not return a queryable pattern.`);
+        let patternIndex = 0;
+        for (const statement of program.statements) {
+            if (statement.type === 'setup') {
+                await runtime.evaluate(statement.code);
                 continue;
             }
-            const events = runtimePatternToEvents(pattern, i, options);
+            if (statement.type === 'let') {
+                const expr = `globalThis.${statement.name} = (${statement.expression.trim()})`;
+                await runtime.evaluate(expr);
+                continue;
+            }
+            const evaluation = await runtime.evaluate(statement.expression);
+            const pattern = evaluation?.pattern;
+            if (!pattern || typeof pattern.queryArc !== 'function') {
+                console.warn(`[strudelcraft] Runtime block #${patternIndex} did not return a queryable pattern.`);
+                patternIndex += 1;
+                continue;
+            }
+            const events = runtimePatternToEvents(pattern, patternIndex, options);
             runtimeEvents.push(...events);
+            patternIndex += 1;
         }
         return { events: runtimeEvents };
     } catch (error) {
@@ -200,29 +209,93 @@ async function tryRuntimeEvaluation(code, options) {
     }
 }
 
-function parseRuntimeBlocks(code) {
+export function parseRuntimeProgram(code) {
     const letRegex = /(^|\n)\s*let\s+([A-Za-z0-9_]+)\s*=\s*([\s\S]*?)(?=\n\s*(?:let|\$:)|$)/g;
     const patternRegex = /(^|\n)\s*\$:\s*([\s\S]*?)(?=\n\s*\$:|$)/g;
+    const statements = [];
     const letEntries = [];
     const patternBlocks = [];
+    const setupStatements = [];
 
     let letMatch;
     while ((letMatch = letRegex.exec(code))) {
         const [, , name, expression] = letMatch;
-        letEntries.push({ name: name.trim(), expression: expression.trim() });
+        const entry = { name: name.trim(), expression: expression.trim() };
+        letEntries.push(entry);
+        statements.push({
+            type: 'let',
+            start: letMatch.index,
+            end: letRegex.lastIndex,
+            ...entry,
+        });
     }
 
     let patternMatch;
     while ((patternMatch = patternRegex.exec(code))) {
         const [, , expression] = patternMatch;
-        patternBlocks.push(expression.trim());
+        const block = expression.trim();
+        patternBlocks.push(block);
+        statements.push({
+            type: 'pattern',
+            start: patternMatch.index,
+            end: patternRegex.lastIndex,
+            expression: block,
+        });
     }
 
-    if (!patternBlocks.length && code.trim().length) {
-        patternBlocks.push(code.trim());
+    if (!statements.length && code.trim().length) {
+        const expression = code.trim();
+        return {
+            statements: [
+                {
+                    type: 'pattern',
+                    start: 0,
+                    end: code.length,
+                    expression,
+                },
+            ],
+            letEntries,
+            patternBlocks: [expression],
+            setupStatements,
+        };
     }
 
-    return { letEntries, patternBlocks };
+    statements.sort((left, right) => left.start - right.start);
+
+    let cursor = 0;
+    const setupRanges = [];
+    statements.forEach((statement) => {
+        if (statement.start > cursor) {
+            setupRanges.push(code.slice(cursor, statement.start));
+        }
+        cursor = Math.max(cursor, statement.end);
+    });
+    if (cursor < code.length) {
+        setupRanges.push(code.slice(cursor));
+    }
+
+    setupRanges.forEach((segment) => {
+        const trimmed = segment.trim();
+        if (!trimmed) return;
+        setupStatements.push(trimmed);
+    });
+
+    const setupEntries = [];
+    let searchCursor = 0;
+    setupStatements.forEach((setupCode) => {
+        const start = code.indexOf(setupCode, searchCursor);
+        const end = start + setupCode.length;
+        searchCursor = end;
+        setupEntries.push({
+            type: 'setup',
+            start,
+            end,
+            code: setupCode,
+        });
+    });
+
+    const orderedStatements = [...statements, ...setupEntries].sort((left, right) => left.start - right.start);
+    return { statements: orderedStatements, letEntries, patternBlocks, setupStatements };
 }
 
 function runtimePatternToEvents(pattern, laneIndex, options) {
