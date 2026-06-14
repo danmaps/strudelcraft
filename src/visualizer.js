@@ -10,6 +10,9 @@ const INSTRUMENT_COLORS = {
     cr: '255, 226, 110',
     rd: '255, 193, 130',
 };
+const ANALYSER_FFT_SIZE = 1024;
+const MIN_SPARK_TTL_SECONDS = 0.3;
+const SPARK_TTL_VARIATION_SECONDS = 0.24;
 
 export function createLiveVisualizer({ canvas, synth, getPattern }) {
     if (!(canvas instanceof HTMLCanvasElement)) {
@@ -32,7 +35,7 @@ export function createLiveVisualizer({ canvas, synth, getPattern }) {
                 y: 0,
                 vx: Math.cos(angle) * speed,
                 vy: Math.sin(angle) * speed,
-                ttl: 0.3 + Math.random() * 0.24,
+                ttl: MIN_SPARK_TTL_SECONDS + Math.random() * SPARK_TTL_VARIATION_SECONDS,
                 life: 0,
                 color: INSTRUMENT_COLORS[rowKey] ?? '255, 170, 110',
             });
@@ -56,14 +59,19 @@ export function createLiveVisualizer({ canvas, synth, getPattern }) {
         lastRenderAt = now;
 
         if (!analyser) {
-            analyser = synth.getAnalyserNode();
+            try {
+                analyser = synth.getAnalyserNode();
+            } catch (error) {
+                console.warn('[strudelcraft] Visualizer analyser unavailable', error);
+                return;
+            }
         }
         if (!analyser) {
             return;
         }
 
-        if (frequencyData.length !== analyser.frequencyBinCount) {
-            analyser.fftSize = 1024;
+        if (analyser.fftSize !== ANALYSER_FFT_SIZE) {
+            analyser.fftSize = ANALYSER_FFT_SIZE;
         }
         analyser.getByteFrequencyData(frequencyData);
         analyser.getByteTimeDomainData(waveformData);

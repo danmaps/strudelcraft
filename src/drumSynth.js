@@ -1,4 +1,5 @@
 const NOISE_LENGTH_SECONDS = 1;
+const ANALYSER_FFT_SIZE = 1024;
 
 export class DrumSynth {
     constructor() {
@@ -69,7 +70,11 @@ export class DrumSynth {
 
         if (fired) {
             this.triggerListeners.forEach((listener) => {
-                listener({ rowKey, time, velocity });
+                try {
+                    listener({ rowKey, time, velocity });
+                } catch (error) {
+                    console.warn('[strudelcraft] Trigger listener failed', error);
+                }
             });
         }
     }
@@ -100,7 +105,7 @@ export class DrumSynth {
         this.masterGain = this.context.createGain();
         this.masterGain.gain.setValueAtTime(0.9, this.context.currentTime);
         this.analyser = this.context.createAnalyser();
-        this.analyser.fftSize = 1024;
+        this.analyser.fftSize = ANALYSER_FFT_SIZE;
         this.analyser.smoothingTimeConstant = 0.82;
         this.masterGain.connect(this.analyser);
         this.analyser.connect(this.context.destination);
