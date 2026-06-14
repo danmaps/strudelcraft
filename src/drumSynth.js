@@ -4,6 +4,9 @@ export class DrumSynth {
     constructor() {
         this.context = null;
         this.noiseBuffer = null;
+        this.masterGain = null;
+        this.analyser = null;
+        this.triggerListeners = new Set();
     }
 
     async resume() {
@@ -17,41 +20,73 @@ export class DrumSynth {
     trigger(rowKey, velocity = 0.9) {
         const context = this.#getContext();
         const time = context.currentTime + 0.01;
+        let fired = false;
 
         switch (rowKey) {
             case 'bd':
                 this.#kick(time, velocity);
+                fired = true;
                 break;
             case 'sd':
                 this.#snare(time, velocity);
+                fired = true;
                 break;
             case 'lt':
                 this.#tom(time, 140, 0.2, velocity);
+                fired = true;
                 break;
             case 'mt':
                 this.#tom(time, 180, 0.18, velocity);
+                fired = true;
                 break;
             case 'ht':
                 this.#tom(time, 240, 0.14, velocity);
+                fired = true;
                 break;
             case 'rim':
                 this.#rim(time, velocity);
+                fired = true;
                 break;
             case 'ch':
                 this.#hat(time, 0.05, 9000, velocity);
+                fired = true;
                 break;
             case 'oh':
                 this.#hat(time, 0.18, 7000, velocity * 0.9);
+                fired = true;
                 break;
             case 'cr':
                 this.#hat(time, 0.42, 5200, velocity * 0.85);
+                fired = true;
                 break;
             case 'rd':
                 this.#hat(time, 0.3, 3800, velocity * 0.8);
+                fired = true;
                 break;
             default:
                 break;
         }
+
+        if (fired) {
+            this.triggerListeners.forEach((listener) => {
+                listener({ rowKey, time, velocity });
+            });
+        }
+    }
+
+    onTrigger(listener) {
+        if (typeof listener !== 'function') {
+            return () => {};
+        }
+        this.triggerListeners.add(listener);
+        return () => {
+            this.triggerListeners.delete(listener);
+        };
+    }
+
+    getAnalyserNode() {
+        this.#getContext();
+        return this.analyser;
     }
 
     #getContext() {
@@ -62,6 +97,13 @@ export class DrumSynth {
         }
         this.context = new AudioContextCtor();
         this.noiseBuffer = this.#createNoiseBuffer(this.context);
+        this.masterGain = this.context.createGain();
+        this.masterGain.gain.setValueAtTime(0.9, this.context.currentTime);
+        this.analyser = this.context.createAnalyser();
+        this.analyser.fftSize = 1024;
+        this.analyser.smoothingTimeConstant = 0.82;
+        this.masterGain.connect(this.analyser);
+        this.analyser.connect(this.context.destination);
         return this.context;
     }
 
@@ -78,7 +120,7 @@ export class DrumSynth {
         gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.28);
 
         oscillator.connect(gain);
-        gain.connect(this.context.destination);
+        gain.connect(this.masterGain);
         oscillator.start(time);
         oscillator.stop(time + 0.3);
     }
@@ -101,7 +143,7 @@ export class DrumSynth {
         gain.gain.exponentialRampToValueAtTime(velocity * 0.28, time + 0.005);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.12);
         tone.connect(gain);
-        gain.connect(this.context.destination);
+        gain.connect(this.masterGain);
         tone.start(time);
         tone.stop(time + 0.13);
     }
@@ -116,7 +158,7 @@ export class DrumSynth {
         gain.gain.exponentialRampToValueAtTime(velocity * 0.5, time + 0.01);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + duration);
         oscillator.connect(gain);
-        gain.connect(this.context.destination);
+        gain.connect(this.masterGain);
         oscillator.start(time);
         oscillator.stop(time + duration + 0.02);
     }
@@ -130,7 +172,7 @@ export class DrumSynth {
         gain.gain.exponentialRampToValueAtTime(velocity * 0.22, time + 0.002);
         gain.gain.exponentialRampToValueAtTime(0.0001, time + 0.05);
         oscillator.connect(gain);
-        gain.connect(this.context.destination);
+        gain.connect(this.masterGain);
         oscillator.start(time);
         oscillator.stop(time + 0.06);
     }
@@ -162,7 +204,7 @@ export class DrumSynth {
 
         source.connect(filter);
         filter.connect(gain);
-        gain.connect(this.context.destination);
+        gain.connect(this.masterGain);
         source.start(time);
         source.stop(time + duration + 0.02);
     }

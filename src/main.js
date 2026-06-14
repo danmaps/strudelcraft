@@ -14,6 +14,7 @@ import {
 } from './sequencerModel.js';
 import { IMPORT_EXAMPLES } from './strudelExamples.js';
 import { createTr808Ui } from './tr808Ui.js';
+import { createLiveVisualizer } from './visualizer.js';
 
 const STORAGE_KEY = 'strudelcraft:sequencer-state';
 
@@ -23,6 +24,7 @@ const ui = createTr808Ui({
     onToggleStep: handleToggleStep,
     onStart: handleStart,
     onStop: handleStop,
+    onToggleVisualize: handleToggleVisualize,
     onClear: handleClear,
     onRandomize: handleRandomize,
     onImport: handleImport,
@@ -31,10 +33,16 @@ const ui = createTr808Ui({
     onPresetChange: handlePresetChange,
     onBpmChange: handleBpmChange,
 });
+const visualizer = createLiveVisualizer({
+    canvas: ui.getVisualizerCanvas(),
+    synth,
+    getPattern: () => pattern,
+});
 
 let pattern = createEmptyPattern();
 let bpm = DEFAULT_BPM;
 let isPlaying = false;
+let isVisualizing = false;
 let currentStep = -1;
 let elapsedSeconds = 0;
 let lastFrameAt = performance.now();
@@ -79,6 +87,7 @@ async function bootstrap() {
 function syncUi({ description, status, sourceInput, presetKey, importExampleKey }) {
     ui.setPattern(pattern);
     ui.setBpm(bpm);
+    ui.setVisualizing(isVisualizing);
     ui.setPatternDescription(description);
     ui.setStatus(status);
     ui.setSourceInput(sourceInput ?? patternToStrudel(pattern));
@@ -142,6 +151,15 @@ function handleStop() {
     ui.setPlaying(false);
     ui.setCurrentStep(-1);
     ui.setStatus('Transport stopped.');
+}
+
+function handleToggleVisualize() {
+    isVisualizing = !isVisualizing;
+    ui.setVisualizing(isVisualizing);
+    if (isVisualizing) {
+        visualizer.resize();
+    }
+    ui.setStatus(isVisualizing ? 'Visualizer mode enabled.' : 'Visualizer mode disabled.');
 }
 
 async function handleToggleStep(rowKey, stepIndex) {
@@ -232,6 +250,10 @@ function tick(now) {
             ui.setCurrentStep(currentStep);
             triggerCurrentStep(currentStep);
         }
+    }
+
+    if (isVisualizing) {
+        visualizer.render(now);
     }
 
     requestAnimationFrame(tick);
