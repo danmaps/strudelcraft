@@ -46,7 +46,7 @@ export function createLiveVisualizer({ canvas, synth, getPattern }) {
     resize();
 
     function resize() {
-        const ratio = Math.max(1, window.devicePixelRatio || 1);
+        const ratio = window.devicePixelRatio || 1;
         const width = Math.max(640, canvas.clientWidth);
         const height = Math.max(320, canvas.clientHeight);
         canvas.width = Math.floor(width * ratio);
@@ -76,8 +76,9 @@ export function createLiveVisualizer({ canvas, synth, getPattern }) {
         analyser.getByteFrequencyData(frequencyData);
         analyser.getByteTimeDomainData(waveformData);
 
-        const width = canvas.width / Math.max(1, window.devicePixelRatio || 1);
-        const height = canvas.height / Math.max(1, window.devicePixelRatio || 1);
+        const ratio = window.devicePixelRatio || 1;
+        const width = canvas.width / ratio;
+        const height = canvas.height / ratio;
         const centerX = width * 0.5;
         const centerY = height * 0.5;
         const energy = average(frequencyData) / 255;

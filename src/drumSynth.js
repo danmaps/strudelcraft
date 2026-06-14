@@ -21,62 +21,49 @@ export class DrumSynth {
     trigger(rowKey, velocity = 0.9) {
         const context = this.#getContext();
         const time = context.currentTime + 0.01;
-        let fired = false;
 
         switch (rowKey) {
             case 'bd':
                 this.#kick(time, velocity);
-                fired = true;
                 break;
             case 'sd':
                 this.#snare(time, velocity);
-                fired = true;
                 break;
             case 'lt':
                 this.#tom(time, 140, 0.2, velocity);
-                fired = true;
                 break;
             case 'mt':
                 this.#tom(time, 180, 0.18, velocity);
-                fired = true;
                 break;
             case 'ht':
                 this.#tom(time, 240, 0.14, velocity);
-                fired = true;
                 break;
             case 'rim':
                 this.#rim(time, velocity);
-                fired = true;
                 break;
             case 'ch':
                 this.#hat(time, 0.05, 9000, velocity);
-                fired = true;
                 break;
             case 'oh':
                 this.#hat(time, 0.18, 7000, velocity * 0.9);
-                fired = true;
                 break;
             case 'cr':
                 this.#hat(time, 0.42, 5200, velocity * 0.85);
-                fired = true;
                 break;
             case 'rd':
                 this.#hat(time, 0.3, 3800, velocity * 0.8);
-                fired = true;
                 break;
             default:
-                break;
+                return;
         }
 
-        if (fired) {
-            this.triggerListeners.forEach((listener) => {
-                try {
-                    listener({ rowKey, time, velocity });
-                } catch (error) {
-                    console.warn('[strudelcraft] Trigger listener failed', error);
-                }
-            });
-        }
+        this.triggerListeners.forEach((listener) => {
+            try {
+                listener({ rowKey, time, velocity });
+            } catch (error) {
+                console.warn('[strudelcraft] Trigger listener failed', error);
+            }
+        });
     }
 
     onTrigger(listener) {
