@@ -6,6 +6,7 @@ export class Tr808Ui {
         onToggleStep,
         onStart,
         onStop,
+        onToggleVisualize,
         onClear,
         onRandomize,
         onImport,
@@ -19,6 +20,7 @@ export class Tr808Ui {
             onToggleStep,
             onStart,
             onStop,
+            onToggleVisualize,
             onClear,
             onRandomize,
             onImport,
@@ -60,6 +62,14 @@ export class Tr808Ui {
 
     setPlaying(isPlaying) {
         this.root.dataset.playing = isPlaying ? 'true' : 'false';
+    }
+
+    setVisualizing(isVisualizing) {
+        this.root.dataset.visualizing = isVisualizing ? 'true' : 'false';
+    }
+
+    getVisualizerCanvas() {
+        return this.root.querySelector('[data-role="visualizer-canvas"]');
     }
 
     setStatus(text) {
@@ -136,6 +146,7 @@ export class Tr808Ui {
                 <div class="transport-buttons">
                     <button type="button" data-action="start" class="primary">Start</button>
                     <button type="button" data-action="stop">Stop</button>
+                    <button type="button" data-action="visualize">Visualize</button>
                     <button type="button" data-action="randomize">Randomize</button>
                     <button type="button" data-action="clear">Clear</button>
                     <button type="button" data-role="copy">Copy Strudel</button>
@@ -172,6 +183,9 @@ export class Tr808Ui {
                     <div class="transport-grid" data-role="transport-grid"></div>
                 </div>
                 <div class="lane-grid" data-role="lane-grid"></div>
+            </section>
+            <section class="visualizer-panel">
+                <canvas data-role="visualizer-canvas"></canvas>
             </section>
             <section class="source-panel">
                 <div class="source-card">
@@ -256,6 +270,7 @@ export class Tr808Ui {
             const action = actionTarget.dataset.action;
             if (action === 'start') this.handlers.onStart?.();
             if (action === 'stop') this.handlers.onStop?.();
+            if (action === 'visualize') this.handlers.onToggleVisualize?.();
             if (action === 'clear') this.handlers.onClear?.();
             if (action === 'randomize') this.handlers.onRandomize?.();
             if (action === 'import') {
